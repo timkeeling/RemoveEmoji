@@ -1,0 +1,49 @@
+# 1. Set Automator Shell to: /bin/zsh
+# 2. Set "Pass input" to: as arguments
+# 3. Paste the code below exactly as is:
+
+perl -MFile::Basename -MFile::Spec -MEncode -e '
+use strict;
+use warnings;
+use utf8;
+
+# Define the Regex for Emojis
+# 1. \x{10000}-\x{10FFFF}: Modern Emojis (Smileys, People, Objects)
+# 2. \x{2600}-\x{27BF}: Legacy Symbols (Dingbats, Weather, Warning signs, ⚡, ⚔️)
+# 3. \x{FE00}-\x{FE0F}: Variation Selectors (Invisible tails often attached to legacy emojis)
+my $emoji_regex = qr/[\x{10000}-\x{10FFFF}\x{2600}-\x{27BF}\x{FE00}-\x{FE0F}]/;
+
+foreach my $raw_path (@ARGV) {
+    my $filepath = decode("UTF-8", $raw_path);
+    next unless -e $filepath;
+
+    my ($name, $dir, $ext) = fileparse($filepath, qr/\.[^.]*/);
+    my $filename = $name . $ext;
+
+    if ($filename =~ $emoji_regex) {
+        
+        my $clean_base = $name;
+        # Execute removal
+        $clean_base =~ s/$emoji_regex//g;
+        
+        # Cleanup whitespace
+        $clean_base =~ s/\s+/ /g;
+        $clean_base =~ s/^\s+|\s+$//g;
+        
+        if ($clean_base eq "") { $clean_base = "Renamed_Item"; }
+        
+        my $new_filename = $clean_base . $ext;
+        my $new_path = File::Spec->catfile($dir, $new_filename);
+        
+        if (-e $new_path && $new_path ne $filepath) {
+            my $counter = 1;
+            while (-e File::Spec->catfile($dir, "${clean_base}_${counter}${ext}")) {
+                $counter++;
+            }
+            $new_path = File::Spec->catfile($dir, "${clean_base}_${counter}${ext}");
+        }
+        
+        rename $filepath, $new_path;
+    }
+}
+' -- "$@"
